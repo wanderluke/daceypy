@@ -11,7 +11,7 @@ def somb(x: array) -> DA:
 def main():
 
     # initialize DACE for 1st-order computations in 2 variables
-    DA.init(1, 2)
+    DA.init(5, 2)
 
     print("Initialize x as two-dim DA vector around (2, 3)\n\n")
 
