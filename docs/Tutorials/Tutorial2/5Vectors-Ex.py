@@ -98,12 +98,11 @@ def ex5_2_2():
 def main():
     DA.init(order, 2)      # init with maximum computation order
 
-    ex5_1_1()
-    ex5_1_2()
+    #ex5_1_1()
+    #ex5_1_2()
 
     ex5_2_1()
     ex5_2_2()
-
 
 if __name__ == "__main__":
     main()

@@ -51,11 +51,14 @@ def ex4_1_4():
     x = x0
 
     i = 1
+    k = 0
     while i <= order:
         x = Nf(x, p)
+        k += 1
         i *= 2
 
-    print(f"Exercise 4.1.3: Naive Newton\n{x}\n{sqrt(p) - x}\n")
+    print(f"Exercise 4.1.4: Wander Luke\n{x}\n{sqrt(p) - x}")
+    print(f"Number of iterations: {k}\n")
 
 
 # Exercise 4.2.1: Full DA Newton solver
