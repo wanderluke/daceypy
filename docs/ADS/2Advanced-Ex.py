@@ -14,7 +14,7 @@ from daceypy import ADS, DA, array
 # setup better images (tex fonts)
 plt.rcParams.update({
     "figure.max_open_warning": 0,
-    "font.family": "Helvetica",
+    "font.family": "DejaVu Sans",
     "mathtext.fontset": "cm",
 })
 
