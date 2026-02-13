@@ -55,7 +55,7 @@ def charDensDynamics(X: array, t: float, mu: float, rE: float, idx_r0: int = 1) 
 def propagation(t0: float, tf: float, X: array, mu: float, rE: float) -> array:
     x0 = X.copy()
     
-    if not isinstance(x0[0], DA): # wrap numeric to constant DA (so RK78 can use .cons())
+    if not isinstance(x0[0], DA):     # ensure DA types
         x0[0] = DA(float(x0[0]))
 
     xf = RK78(
@@ -83,7 +83,7 @@ def propagation_dens(t0: float, tf: float, X: array, mu: float, rE: float, idx_r
 
     x0 = X.copy()                  # X must be array([r, w])
 
-    if not isinstance(x0[0], DA):  # ensure DA types (needed because we use .deriv)
+    if not isinstance(x0[0], DA):  # ensure DA types 
         x0[0] = DA(float(x0[0]))
     if not isinstance(x0[1], DA):
         x0[1] = DA(float(x0[1]))
@@ -95,19 +95,17 @@ def propagation_dens(t0: float, tf: float, X: array, mu: float, rE: float, idx_r
     )
     return xf                      # array([rf, wf])
 
-def naive_characteristics_ADS(domain: ADS, t0: float, tf: float, mu: float, rE: float, w0: Union[float, DA],
-                              idx_r0: int = 1) -> ADS:
+def naive_characteristics_ADS(domain: ADS, t0: float, tf: float, mu: float, rE: float, w0: Union[float, DA], idx_r0: int = 1) -> ADS:
 
     r0 = domain.box[0]         
-    w0_da = w0 if isinstance(w0, DA) else DA(float(w0))
+    w0_DA = w0 if isinstance(w0, DA) else DA(float(w0))
 
-    x0 = array([r0, w0_da])
+    x0 = array([r0, w0_DA])
     xf = propagation_dens(t0, tf, x0, mu, rE, idx_r0=idx_r0)
 
     rf, wf = xf[0], xf[1]
-    u = wf / (rf * rf)
 
-    return ADS(domain.box, domain.nsplit, array([rf, u]))
+    return ADS(domain.box, domain.nsplit, array([rf, wf])) # la manifold finale è un vettore 2D per il rispettivo sotto-dominio
 
 def advanced_characteristics_ADS(domain: ADS, t0: float, tf: float, mu: float, rE: float, idx_r0: int = 1) -> ADS:
 
@@ -115,9 +113,17 @@ def advanced_characteristics_ADS(domain: ADS, t0: float, tf: float, mu: float, r
     xf = propagation_dens(t0, tf, x0, mu, rE, idx_r0=idx_r0)
 
     rf, wf = xf[0], xf[1]
-    u = wf / (rf * rf)
 
-    return ADS(domain.box, domain.nsplit, array([rf, u]))
+    return ADS(domain.box, domain.nsplit, array([rf, wf]))
+
+def compute_u_list(domains):
+    u_domains = []
+    for dom in domains:
+        r = dom.manifold[0]
+        w = dom.manifold[1]
+        u = w / (r * r)
+        u_domains.append( ADS(dom.box, dom.nsplit, array([u])) )
+    return u_domains
 
 def RK78(Y0: array, X0: float, X1: float, f: Callable[[array, float], array], event=None) -> array:
     """
@@ -326,7 +332,7 @@ def main():
     w_DA = DA((1.0 / (4.0 * np.pi)) * (NN / deltah))
 
     man = array([r_DA, w_DA])
-    init_list_v3 = [ADS(dom, [],man)]
+    init_list_v3 = [ADS(dom, [], man)]
 
     #################################### test_v0 ####################################
     
@@ -343,7 +349,7 @@ def main():
     #     init_list,
     #     split_tol,
     #     split_depth,
-    #     lambda d: fnc_drdt_ADS(d, mu, rE)
+    #     lambda domain: fnc_drdt_ADS(domain, mu, rE)
     # )
     # print(final_list[0].box)  # show the box of the first domain
     # print(final_list[0].manifold) # show the manifold of the first domain
@@ -354,14 +360,14 @@ def main():
     #################################### test_v1 ####################################
 
     # Point 1 - double
-    # x0 = array([r_mid])                 # <-- wrap numeric to array (so RK78 can use .cons())
-    # xf = propagation(t0, tf, x0, mu, rE)  # xf is array([rf])
-    # rf = float(xf[0].cons())            # numeric
+    # x0 = array([r_mid])              
+    # xf = propagation(t0, tf, x0, mu, rE)  
+    # rf = float(xf[0].cons())          
     # print("x0 alt [km] =", r_mid - rE, "xf alt [km] =", rf - rE)
 
     # Point 2 - DA
     # x0_da = array([r_DA])           
-    # xf_da = propagation(t0, tf, x0_da, mu, rE)  # array([rf_DA])
+    # xf_da = propagation(t0, tf, x0_da, mu, rE)  
     # print("x0 =\n", r_DA - rE, "\nxf =\n", xf_da[0] - rE)
 
     # Point 3 - DA + ADS
@@ -378,58 +384,60 @@ def main():
     # print('execution time base ADS: ', time.time() - start_basic)
 
     # ADVANCED ADS application
-    final_list = init_list.copy()
-    final_lists.append(final_list) # add also initial domains
+    # final_list = init_list.copy()
+    # final_lists.append(final_list) # add also initial domains
 
-    start_advanced = time.time()
-    for i in range(Ts - 1):
-        final_list = ADS.eval(
-            final_list, split_tol, split_depth,
-            lambda domain: advanced_propagation_ADS(domain, t0=tgrid[i], tf=tgrid[i+1], mu=mu, rE=rE))
-        final_lists.append(final_list)
+    # start_advanced = time.time()
+    # for i in range(Ts - 1):
+    #     final_list = ADS.eval(
+    #         final_list, split_tol, split_depth,
+    #         lambda domain: advanced_propagation_ADS(domain, t0=tgrid[i], tf=tgrid[i+1], mu=mu, rE=rE))
+    #     final_lists.append(final_list)
 
-        print('time ', tgrid[i+1], 'reached!')
-    print('execution time advanced ADS: ', time.time() - start_advanced)
+    #     print('time ', tgrid[i+1], 'reached!')
+    # print('execution time advanced ADS: ', time.time() - start_advanced)
     
     #################################### test_v3 ####################################
     
     # Point 3 - DA + ADS    
     
     # NAIVE ADS application
-    
-    # final_lists_naive = []
-
+    # final_lists_rw = []
+    # final_lists_u  = []
     # start_basic = time.time()
     # for i in range(1, len(tgrid)):
     #     final_list = ADS.eval(
     #         init_list_v3, split_tol, split_depth,
-    #         lambda d: naive_characteristics_ADS(
-    #             d, t0=t0, tf=float(tgrid[i]),
+    #         lambda domain: naive_characteristics_ADS(
+    #             domain, t0=t0, tf=float(tgrid[i]),
     #             mu=mu, rE=rE, w0=w_DA, idx_r0=1
     #         )
     #     )
-    #     final_lists_naive.append(final_list)
+    #     final_lists_rw.append(final_list)
+    #     final_lists_u.append(compute_u_list(final_list))
     #     print("time", tgrid[i], "reached!  Ndomains =", len(final_list))
     # print("execution time v3 naive ADS:", time.time() - start_basic)
 
     # ADVANCED ADS application
+    final_lists_rw = []
+    final_lists_u  = []
+    final_list = init_list_v3.copy()
+    final_lists_rw.append(final_list)
+    final_lists_u.append(compute_u_list(final_list)) # questo è u a t0
 
-    # final_lists_adv = []
-    # final_list = init_list_v3.copy()
-    # final_lists_adv.append(final_list)  # stato a tgrid[0]=t0
-
-    # start_adv = time.time()
-    # for i in range(Ts - 1):
-    #     final_list = ADS.eval(
-    #         final_list, split_tol, split_depth,
-    #         lambda d: advanced_characteristics_ADS(
-    #             d, t0=float(tgrid[i]), tf=float(tgrid[i+1]),
-    #             mu=mu, rE=rE, idx_r0=1
-    #         )
-    #     )
-    #     final_lists_adv.append(final_list)
-    #     print("time", tgrid[i+1], "reached!  Ndomains =", len(final_list))
-    # print("execution time v3 advanced ADS:", time.time() - start_adv)
+    start_adv = time.time()
+    for i in range(Ts - 1):
+        final_list = ADS.eval(
+            final_list, split_tol, split_depth,
+            lambda domain: advanced_characteristics_ADS(
+                domain, t0=tgrid[i], tf=tgrid[i+1],
+                mu=mu, rE=rE, idx_r0=1
+            )
+        )
+        final_lists_rw.append(final_list)
+        final_lists_u.append(compute_u_list(final_list))
+        print("time", tgrid[i+1], "reached!  Ndomains =", len(final_list))
+    print("execution time v3 advanced ADS:", time.time() - start_adv)
 
 if __name__ == "__main__":
     main()
