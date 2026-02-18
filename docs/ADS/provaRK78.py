@@ -7,11 +7,14 @@ from daceypy import DA, array, ADS
 from typing import Callable
 from daceypy.op import exp, sqrt, tanh
 from typing import Union
+from provaExport import export_ads
+from provaExport_v3_r_w import export_ads_v3_r_w
+from provaExport_v3_r_u import export_ads_v3_r_u
 
-def event_reentry_180(X: array, t: float, rE: float) -> bool:
+def event_reentry_150(X: array, t: float, rE: float) -> bool:
     r = X[0]
     r_cons = float(r.cons()) if hasattr(r, "cons") else float(r) # r puo essere float o DA
-    return r_cons <= (rE + 180.0)
+    return r_cons <= (rE + 150.0)
 
 def atm_dens(r, rE: float):
     rho_ref = 1e-14 * 1e3                 # [kg/m^3]  
@@ -28,6 +31,7 @@ def fnc_drdt(r, mu: float, rE: float):
     r0 = rE + 200.0                            # [km]
     delta = 20.0                               # [km]
     chi = 0.5 * (1.0 + tanh((r - r0) / delta)) # [-] bridging function around 200 km altitude
+    # chi = 1.0
     return v_r * chi                           # same type as r
 
 def fnc_drdt_ADS(domain: ADS, mu: float, rE: float) -> ADS:
@@ -61,7 +65,7 @@ def propagation(t0: float, tf: float, X: array, mu: float, rE: float) -> array:
     xf = RK78(
         x0, t0, tf,
         lambda X, t: characteristicsDynamics(X, t, mu, rE),
-        event=lambda X, t: event_reentry_180(X, t, rE)
+        event=lambda X, t: event_reentry_150(X, t, rE)
     )
     return xf
     
@@ -91,7 +95,7 @@ def propagation_dens(t0: float, tf: float, X: array, mu: float, rE: float, idx_r
     xf = RK78(
         x0, t0, tf,
         lambda X, t: charDensDynamics(X, t, mu, rE, idx_r0=idx_r0),
-        event=lambda X, t: event_reentry_180(X, t, rE)
+        event=lambda X, t: event_reentry_150(X, t, rE)
     )
     return xf                      # array([rf, wf])
 
@@ -133,10 +137,14 @@ def RK78(Y0: array, X0: float, X1: float, f: Callable[[array, float], array], ev
 
     N = len(Y0)
 
-    H0 = 0.001
-    HS = 0.1
-    H1 = 100.0
-    EPS = 1.e-12
+    # H0 = 0.001
+    # HS = 0.1
+    # H1 = 100.0
+    H0 = 3600 
+    HS = 86400 
+    H1 = 86400 * 365.25
+    # EPS = 1.e-12
+    EPS = 1.e-8
     BS = 20 * EPS
 
     Z = array.zeros((N, 16))
@@ -310,12 +318,12 @@ def main():
     mu = 3.986004418e5; # km^3/s^2
     rE = 6378.0
     t0 = 0.0
-    tf = 1000.0 * 24.0 * 1.0
+    tf = 3600.0 * 24.0 * 365.25
     Ts = 100
     tgrid = np.linspace(t0, tf, Ts) # from YES 0: HO MODIFICATO IL LOOP TEMPORALE DI NAIVE ADS
 
     h_min = 200.0
-    h_max = 800.0
+    h_max = 2000.0
     r_mid = rE + (h_min + h_max) / 2.0
     dr = 0.5 * (h_max - h_min)
     r_DA = r_mid + dr * DA(1)
@@ -325,7 +333,7 @@ def main():
     final_lists = []
 
     split_tol = 1e-6  # tighter => more splits
-    split_depth = 8   # max depth
+    split_depth = 15 # max depth
 
     NN = 10000.0
     deltah = 1800.0
@@ -351,11 +359,12 @@ def main():
     #     split_depth,
     #     lambda domain: fnc_drdt_ADS(domain, mu, rE)
     # )
-    # print(final_list[0].box)  # show the box of the first domain
-    # print(final_list[0].manifold) # show the manifold of the first domain
-    # print(final_list[1].manifold) # show the manifold of the second domain
-    # print(final_list[2].manifold) # show the manifold of the third domain
-    # print(final_list[3].manifold) # show the manifold of the fourth domain
+    # export_ads(final_list, out_dir="v0", rEarth=rE, h_range=(200.0, 2000.0))
+    # print(final_list[0].box[0])  # show the box of the first domain
+    # print(final_list[0].manifold[0]) # show the manifold of the first domain
+    # print(final_list[1].manifold[0]) # show the manifold of the second domain
+    # print(final_list[2].manifold[0]) # show the manifold of the third domain
+    # print(final_list[3].manifold[0]) # show the manifold of the fourth domain
 
     #################################### test_v1 ####################################
 
@@ -395,8 +404,8 @@ def main():
     #     final_lists.append(final_list)
 
     #     print('time ', tgrid[i+1], 'reached!')
-    # print('execution time advanced ADS: ', time.time() - start_advanced)
-    
+    # print('execution time advanced ADS: ', time.time() - start_advanced) # 259 s
+    # export_ads(final_list, out_dir="v1", rEarth=rE, h_range=(200.0, 2000.0))
     #################################### test_v3 ####################################
     
     # Point 3 - DA + ADS    
@@ -436,8 +445,12 @@ def main():
         )
         final_lists_rw.append(final_list)
         final_lists_u.append(compute_u_list(final_list))
-        print("time", tgrid[i+1], "reached!  Ndomains =", len(final_list))
-    print("execution time v3 advanced ADS:", time.time() - start_adv)
+        print("time", tgrid[i+1], "reached!")
+    print("execution time v3 advanced ADS:", time.time() - start_adv) # 469 s
+    export_ads_v3_r_w(final_list=final_list, out_dir="v3_r_w", rEarth=rE, 
+                      h_range=(200.0, 2000.0), idx_r0=1, file_prefix="dom")
+    export_ads_v3_r_u(final_list=final_list, out_dir="v3_r_u", rEarth=rE,
+                      h_range=(200.0, 2000.0), idx_r0=1, file_prefix="dom")
 
 if __name__ == "__main__":
     main()
