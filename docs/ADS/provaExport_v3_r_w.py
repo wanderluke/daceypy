@@ -106,7 +106,5 @@ def export_ads_v3_r_w(
 
         with (outp / f"{file_prefix}_{k}.dat").open("w", encoding="utf-8") as f:
             _write_da_block(f, rf)
-            f.write("------------------------------------------------\n")
             _write_da_block(f, wf)
-            f.write("------------------------------------------------\n")
 

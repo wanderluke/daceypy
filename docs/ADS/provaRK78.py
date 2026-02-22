@@ -1,5 +1,6 @@
 import daceypy_import_helper  # noqa: F401
 import time
+from pathlib import Path
 from math import ceil
 from time import perf_counter
 import numpy as np
@@ -318,12 +319,12 @@ def main():
     mu = 3.986004418e5; # km^3/s^2
     rE = 6378.0
     t0 = 0.0
-    tf = 3600.0 * 24.0 * 365.25
+    tf = 3600.0 * 12.0 * 365.25
     Ts = 100
     tgrid = np.linspace(t0, tf, Ts) # from YES 0: HO MODIFICATO IL LOOP TEMPORALE DI NAIVE ADS
 
     h_min = 200.0
-    h_max = 2000.0
+    h_max = 600.0
     r_mid = rE + (h_min + h_max) / 2.0
     dr = 0.5 * (h_max - h_min)
     r_DA = r_mid + dr * DA(1)
@@ -333,10 +334,10 @@ def main():
     final_lists = []
 
     split_tol = 1e-6  # tighter => more splits
-    split_depth = 15 # max depth
+    split_depth = 20 # max depth
 
     NN = 10000.0
-    deltah = 1800.0
+    deltah = (h_max - h_min)
     w_DA = DA((1.0 / (4.0 * np.pi)) * (NN / deltah))
 
     man = array([r_DA, w_DA])
@@ -428,29 +429,62 @@ def main():
     # print("execution time v3 naive ADS:", time.time() - start_basic)
 
     # ADVANCED ADS application
-    final_lists_rw = []
-    final_lists_u  = []
-    final_list = init_list_v3.copy()
-    final_lists_rw.append(final_list)
-    final_lists_u.append(compute_u_list(final_list)) # questo è u a t0
+    # final_lists_rw = []
+    # final_lists_u  = []
+    # final_list = init_list_v3.copy()
+    # final_lists_rw.append(final_list)
+    # final_lists_u.append(compute_u_list(final_list)) # questo è u a t0
 
+    # start_adv = time.time()
+    # for i in range(Ts - 1):
+    #     final_list = ADS.eval(
+    #         final_list, split_tol, split_depth,
+    #         lambda domain: advanced_characteristics_ADS(
+    #             domain, t0=tgrid[i], tf=tgrid[i+1],
+    #             mu=mu, rE=rE, idx_r0=1
+    #         )
+    #     )
+    #     final_lists_rw.append(final_list)
+    #     final_lists_u.append(compute_u_list(final_list))
+    #     print("time", tgrid[i+1], "reached!")
+    # print("execution time v3 advanced ADS:", time.time() - start_adv) # 469 s
+    # export_ads_v3_r_w(final_list=final_list, out_dir="v3_r_w", rEarth=rE, 
+    #                   h_range=(h_min, h_max), idx_r0=1, file_prefix="dom")
+    # export_ads_v3_r_u(final_list=final_list, out_dir="v3_r_u", rEarth=rE,
+    #                   h_range=(h_min, h_max), idx_r0=1, file_prefix="dom")
+    
+    # ADVANCED ADS application + export at each time step
+    base_out = Path(r"C:\Users\lgao111\OneDrive - The University of Auckland\Desktop\Data Tests") / "v3"
+    base_out.mkdir(parents=True, exist_ok=True)
+    final_list = init_list_v3.copy()
+    out_dir0 = base_out / f"{0:04d}" # export initial condition at t=t0
+    export_ads_v3_r_u(
+        final_list=final_list,
+        out_dir=str(out_dir0),
+        rEarth=rE,
+        h_range=(h_min, h_max),
+        idx_r0=1,
+        file_prefix="dom",
+    )
     start_adv = time.time()
-    for i in range(Ts - 1):
+    for i in range(1, Ts):
         final_list = ADS.eval(
             final_list, split_tol, split_depth,
             lambda domain: advanced_characteristics_ADS(
-                domain, t0=tgrid[i], tf=tgrid[i+1],
+                domain, t0=float(tgrid[i-1]), tf=float(tgrid[i]),
                 mu=mu, rE=rE, idx_r0=1
             )
         )
-        final_lists_rw.append(final_list)
-        final_lists_u.append(compute_u_list(final_list))
-        print("time", tgrid[i+1], "reached!")
-    print("execution time v3 advanced ADS:", time.time() - start_adv) # 469 s
-    export_ads_v3_r_w(final_list=final_list, out_dir="v3_r_w", rEarth=rE, 
-                      h_range=(200.0, 2000.0), idx_r0=1, file_prefix="dom")
-    export_ads_v3_r_u(final_list=final_list, out_dir="v3_r_u", rEarth=rE,
-                      h_range=(200.0, 2000.0), idx_r0=1, file_prefix="dom")
+        out_dir_i = base_out / f"{i:04d}"
+        export_ads_v3_r_u(
+            final_list=final_list,
+            out_dir=str(out_dir_i),
+            rEarth=rE,
+            h_range=(h_min, h_max),
+            idx_r0=1,
+            file_prefix="dom",
+        )
+    print("execution time v3 advanced ADS + export:", time.time() - start_adv) # 464 s 
 
 if __name__ == "__main__":
     main()

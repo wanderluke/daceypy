@@ -50,6 +50,23 @@ def _write_da_block(f, da_obj):
     if not s.endswith("\n"):
         f.write("\n")
 
+def _split_depth(dom) -> int:
+    """
+    Return split-tree depth for this domain.
+    Works whether dom.nsplit is a python list or a daceypy.array-like.
+    """
+    ns = getattr(dom, "nsplit", None)
+    if ns is None:
+        return 0
+    try:
+        return len(ns)
+    except TypeError:
+        # some array-like types may not expose len; try converting
+        try:
+            return len(list(ns))
+        except Exception:
+            return 0
+
 def export_ads_v3_r_u(
     final_list: List,
     out_dir: str,
@@ -60,13 +77,16 @@ def export_ads_v3_r_u(
 ):
     """
     Export v3 as:
-      out_dir/data.dat   (same as v1/v3: 2 0 xh_w xh_c)
+      out_dir/data.dat   (2 0 xh_w xh_c nsplit)
       out_dir/dom_k.dat  with m=2 blocks: r and u, where u = w / r^2
 
     Assumes each domain.manifold = [r, w].
     """
     outp = Path(out_dir)
     outp.mkdir(parents=True, exist_ok=True)
+    (outp / "data.dat").unlink(missing_ok=True) # questo pezzo sovrascrive data.dat
+    for p in outp.glob(f"{file_prefix}_*.dat"): # questo pezzo sovrascrive dom_k.dat files e cancella quelli in eccesso
+        p.unlink()
 
     hmin, hmax = h_range
     dh = (hmax - hmin) / 2.0
@@ -85,7 +105,9 @@ def export_ads_v3_r_u(
             xh_c = (h_c - hmid) / dh    # normalized center
             xh_w = h_w / dh             # normalized width
 
-            f.write(f"2 0 {xh_w:.16g} {xh_c:.16g}\n")
+            depth = _split_depth(dom)   # len(dom.nsplit)
+
+            f.write(f"2 0 {xh_w:.16g} {xh_c:.16g} {depth:d}\n")
 
     # ---- dom_k.dat
     for k, dom in enumerate(final_list):
@@ -96,10 +118,6 @@ def export_ads_v3_r_u(
         u_da = w_da / (r_da * r_da)
 
         with (outp / f"{file_prefix}_{k}.dat").open("w", encoding="utf-8") as f:
-            # block 1: r
             _write_da_block(f, r_da)
-            f.write("------------------------------------------------\n")
-            # block 2: u
             _write_da_block(f, u_da)
-            f.write("------------------------------------------------\n")
 
