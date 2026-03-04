@@ -130,6 +130,20 @@ def compute_u_list(domains):
         u_domains.append( ADS(dom.box, dom.nsplit, array([u])) )
     return u_domains
 
+def eFun(domain_0: ADS) -> ADS:
+    
+    NN = 10000.0 # poi li mettero fuori come parametri di ingresso
+    mu_h = 750.0     
+    sigma_h = 150.0  
+    rE = 6378.0
+    
+    r = domain_0.box[0]
+    h = r - rE
+
+    w = (NN / (sigma_h*np.sqrt(2*np.pi))) * DA.exp(-0.5*((h-mu_h)/sigma_h)**2) / (4*np.pi)
+
+    return ADS(domain_0.box, domain_0.nsplit, array([w]))
+
 def RK78(Y0: array, X0: float, X1: float, f: Callable[[array, float], array], event=None) -> array:
     """
     Propagate using RK78.
@@ -315,33 +329,38 @@ def main():
 
     DA.init(4, 1)
     DA.setEps(1e-40)
+    split_tol = 1e-6 
+    split_depth = 20 # max depth
     
     mu = 3.986004418e5; # km^3/s^2
     rE = 6378.0
+    
     t0 = 0.0
     tf = 3600.0 * 12.0 * 365.25
     Ts = 100
     tgrid = np.linspace(t0, tf, Ts) # from YES 0: HO MODIFICATO IL LOOP TEMPORALE DI NAIVE ADS
-
+    
     h_min = 200.0
-    h_max = 600.0
+    h_max = 1000.0
     r_mid = rE + (h_min + h_max) / 2.0
     dr = 0.5 * (h_max - h_min)
     r_DA = r_mid + dr * DA(1)
 
-    dom = array([r_DA])
-    init_list = [ADS(dom, [])]
-    final_lists = []
+    # NN = 10000.0 # w0 costante
+    # deltah = (h_max - h_min)
+    # w_DA = DA((1.0 / (4.0 * np.pi)) * (NN / deltah))
+    # NN = 10000.0 # w0 gaussiana con 1 patch
+    # mu_h = 750.0      # km
+    # sigma_h = 150.0   # km
+    # h_DA = r_DA - rE  # quota in km (DA)
+    # n_DA = (NN / (sigma_h * sqrt(2.0*np.pi))) * exp(-0.5 * ((h_DA - mu_h)/sigma_h)**2) # n(h): oggetti/km, integra a NN su (-inf,inf)
+    # w_DA = n_DA / (4.0*np.pi) # w(h): oggetti/(km·sr), isotropo
 
-    split_tol = 1e-6  # tighter => more splits
-    split_depth = 20 # max depth
-
-    NN = 10000.0
-    deltah = (h_max - h_min)
-    w_DA = DA((1.0 / (4.0 * np.pi)) * (NN / deltah))
-
-    man = array([r_DA, w_DA])
-    init_list_v3 = [ADS(dom, [], man)]
+    # dom = array([r_DA])
+    # man = array([r_DA, w_DA])
+    # init_list = [ADS(dom, [])]
+    # final_lists = []
+    # init_list_v3 = [ADS(dom, [], man)]
 
     #################################### test_v0 ####################################
     
@@ -407,6 +426,7 @@ def main():
     #     print('time ', tgrid[i+1], 'reached!')
     # print('execution time advanced ADS: ', time.time() - start_advanced) # 259 s
     # export_ads(final_list, out_dir="v1", rEarth=rE, h_range=(200.0, 2000.0))
+    
     #################################### test_v3 ####################################
     
     # Point 3 - DA + ADS    
@@ -454,9 +474,48 @@ def main():
     #                   h_range=(h_min, h_max), idx_r0=1, file_prefix="dom")
     
     # ADVANCED ADS application + export at each time step
-    base_out = Path(r"C:\Users\lgao111\OneDrive - The University of Auckland\Desktop\Data Tests") / "v3"
+    # base_out = Path(r"C:\Users\lgao111\OneDrive - The University of Auckland\Desktop\Data Tests") / "v3_const_2000_1yr"
+    # base_out.mkdir(parents=True, exist_ok=True)
+    # final_list = init_list_v3.copy()
+    # out_dir0 = base_out / f"{0:04d}" # export initial condition at t=t0
+    # export_ads_v3_r_u(
+    #     final_list=final_list,
+    #     out_dir=str(out_dir0),
+    #     rEarth=rE,
+    #     h_range=(h_min, h_max),
+    #     idx_r0=1,
+    #     file_prefix="dom",
+    # )
+    # start_adv = time.time()
+    # for i in range(1, Ts):
+    #     final_list = ADS.eval(
+    #         final_list, split_tol, split_depth,
+    #         lambda domain: advanced_characteristics_ADS(
+    #             domain, t0=float(tgrid[i-1]), tf=float(tgrid[i]),
+    #             mu=mu, rE=rE, idx_r0=1
+    #         )
+    #     )
+    #     out_dir_i = base_out / f"{i:04d}"
+    #     export_ads_v3_r_u(
+    #         final_list=final_list,
+    #         out_dir=str(out_dir_i),
+    #         rEarth=rE,
+    #         h_range=(h_min, h_max),
+    #         idx_r0=1,
+    #         file_prefix="dom",
+    #     )
+    # print("execution time v3 advanced ADS + export:", time.time() - start_adv) # 464 s 
+
+    init_domain = ADS(array([r_DA]))
+    final_list = ADS.eval([init_domain], split_tol, split_depth, eFun)   
+    final_list = [
+        ADS(dom.box, dom.nsplit, array([dom.box[0], dom.manifold[0]]))
+        for dom in final_list
+    ]
+    
+    # ADVANCED ADS application + export at each time step
+    base_out = Path(r"C:\Users\lgao111\OneDrive - The University of Auckland\Desktop\Data Tests") / "v3_gaussMP_1000_0.5yr"
     base_out.mkdir(parents=True, exist_ok=True)
-    final_list = init_list_v3.copy()
     out_dir0 = base_out / f"{0:04d}" # export initial condition at t=t0
     export_ads_v3_r_u(
         final_list=final_list,
@@ -484,7 +543,7 @@ def main():
             idx_r0=1,
             file_prefix="dom",
         )
-    print("execution time v3 advanced ADS + export:", time.time() - start_adv) # 464 s 
+    print("execution time v3 advanced ADS Multi Patch + export:", time.time() - start_adv) # 315 s
 
 if __name__ == "__main__":
     main()
