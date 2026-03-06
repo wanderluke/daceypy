@@ -1,16 +1,11 @@
 import daceypy_import_helper  # noqa: F401
-import time
 from pathlib import Path
 from math import ceil
-from time import perf_counter
 import numpy as np
 from daceypy import DA, array, ADS
 from typing import Callable
 from daceypy.op import exp, sqrt, tanh
 from typing import Union
-from provaExport import export_ads
-from provaExport_v3_r_w import export_ads_v3_r_w
-from provaExport_v3_r_u import export_ads_v3_r_u
 
 def event_reentry_150(X: array, t: float, rE: float) -> bool:
     r = X[0]
@@ -130,17 +125,33 @@ def compute_u_list(domains):
         u_domains.append( ADS(dom.box, dom.nsplit, array([u])) )
     return u_domains
 
-def eFun(domain_0: ADS) -> ADS:
-    
-    NN = 10000.0 # poi li mettero fuori come parametri di ingresso
-    mu_h = 750.0     
-    sigma_h = 150.0  
-    rE = 6378.0
+def eFunGauss(domain_0: ADS, NN: float, mu_h: float, sigma_h: float, rE: float) -> ADS:
     
     r = domain_0.box[0]
     h = r - rE
 
-    w = (NN / (sigma_h*np.sqrt(2*np.pi))) * DA.exp(-0.5*((h-mu_h)/sigma_h)**2) / (4*np.pi)
+    z = (h - mu_h) / sigma_h
+    w = (NN / (sigma_h * np.sqrt(2*np.pi))) * DA.exp(-0.5 * z * z) / (4*np.pi)
+
+    return ADS(domain_0.box, domain_0.nsplit, array([w]))
+
+def eFunGMM(domain_0: ADS, NN: float, mu_h, sigma_h, weight, rE: float) -> ADS:
+
+    r = domain_0.box[0]
+    h = r - rE  
+
+    # n(h): objects/km, integrates to NN over (-inf, +inf)
+    # n(h) = NN * sum_j w_j * N(h; mu_j, sigma_j)
+    n = DA(0.0)
+    for wj, muj, sj in zip(weight, mu_h, sigma_h):
+        sj = float(sj)
+        # guard (avoid sigma=0)
+        if sj <= 0.0:
+            continue
+        n = n + (float(wj) / (sj * np.sqrt(2.0*np.pi))) * exp(-0.5 * ((h - muj)/sj)**2)
+
+    n = NN * n
+    w = n / (4.0*np.pi)  # objects/(km*sr), isotropic
 
     return ADS(domain_0.box, domain_0.nsplit, array([w]))
 
@@ -327,223 +338,7 @@ def RK78(Y0: array, X0: float, X1: float, f: Callable[[array, float], array], ev
 
 def main():
 
-    DA.init(4, 1)
-    DA.setEps(1e-40)
-    split_tol = 1e-6 
-    split_depth = 20 # max depth
-    
-    mu = 3.986004418e5; # km^3/s^2
-    rE = 6378.0
-    
-    t0 = 0.0
-    tf = 3600.0 * 12.0 * 365.25
-    Ts = 100
-    tgrid = np.linspace(t0, tf, Ts) # from YES 0: HO MODIFICATO IL LOOP TEMPORALE DI NAIVE ADS
-    
-    h_min = 200.0
-    h_max = 1000.0
-    r_mid = rE + (h_min + h_max) / 2.0
-    dr = 0.5 * (h_max - h_min)
-    r_DA = r_mid + dr * DA(1)
-
-    # NN = 10000.0 # w0 costante
-    # deltah = (h_max - h_min)
-    # w_DA = DA((1.0 / (4.0 * np.pi)) * (NN / deltah))
-    # NN = 10000.0 # w0 gaussiana con 1 patch
-    # mu_h = 750.0      # km
-    # sigma_h = 150.0   # km
-    # h_DA = r_DA - rE  # quota in km (DA)
-    # n_DA = (NN / (sigma_h * sqrt(2.0*np.pi))) * exp(-0.5 * ((h_DA - mu_h)/sigma_h)**2) # n(h): oggetti/km, integra a NN su (-inf,inf)
-    # w_DA = n_DA / (4.0*np.pi) # w(h): oggetti/(km·sr), isotropo
-
-    # dom = array([r_DA])
-    # man = array([r_DA, w_DA])
-    # init_list = [ADS(dom, [])]
-    # final_lists = []
-    # init_list_v3 = [ADS(dom, [], man)]
-
-    #################################### test_v0 ####################################
-    
-    # Point 1 - double
-    # vr = fnc_drdt(r_mid, mu, rE)
-    # print(vr)
-
-    # Point 2 - DA
-    # vr_DA = fnc_drdt(r_DA, mu, rE)
-    # print(vr_DA)
-
-    # Point 3 - DA + ADS
-    # final_list = ADS.eval(
-    #     init_list,
-    #     split_tol,
-    #     split_depth,
-    #     lambda domain: fnc_drdt_ADS(domain, mu, rE)
-    # )
-    # export_ads(final_list, out_dir="v0", rEarth=rE, h_range=(200.0, 2000.0))
-    # print(final_list[0].box[0])  # show the box of the first domain
-    # print(final_list[0].manifold[0]) # show the manifold of the first domain
-    # print(final_list[1].manifold[0]) # show the manifold of the second domain
-    # print(final_list[2].manifold[0]) # show the manifold of the third domain
-    # print(final_list[3].manifold[0]) # show the manifold of the fourth domain
-
-    #################################### test_v1 ####################################
-
-    # Point 1 - double
-    # x0 = array([r_mid])              
-    # xf = propagation(t0, tf, x0, mu, rE)  
-    # rf = float(xf[0].cons())          
-    # print("x0 alt [km] =", r_mid - rE, "xf alt [km] =", rf - rE)
-
-    # Point 2 - DA
-    # x0_da = array([r_DA])           
-    # xf_da = propagation(t0, tf, x0_da, mu, rE)  
-    # print("x0 =\n", r_DA - rE, "\nxf =\n", xf_da[0] - rE)
-
-    # Point 3 - DA + ADS
-
-    # NAIVE ADS application
-    # start_basic = time.time()
-    # for i in range(1, len(tgrid)):
-    #    final_list = ADS.eval(
-    #        init_list, split_tol, split_depth,
-    #        lambda domain: naive_propagation_ADS(domain, t0, tf=tgrid[i], mu=mu, rE=rE))
-    #    final_lists.append(final_list)
-
-    #    print('time ', tgrid[i], ' reached!')
-    # print('execution time base ADS: ', time.time() - start_basic)
-
-    # ADVANCED ADS application
-    # final_list = init_list.copy()
-    # final_lists.append(final_list) # add also initial domains
-
-    # start_advanced = time.time()
-    # for i in range(Ts - 1):
-    #     final_list = ADS.eval(
-    #         final_list, split_tol, split_depth,
-    #         lambda domain: advanced_propagation_ADS(domain, t0=tgrid[i], tf=tgrid[i+1], mu=mu, rE=rE))
-    #     final_lists.append(final_list)
-
-    #     print('time ', tgrid[i+1], 'reached!')
-    # print('execution time advanced ADS: ', time.time() - start_advanced) # 259 s
-    # export_ads(final_list, out_dir="v1", rEarth=rE, h_range=(200.0, 2000.0))
-    
-    #################################### test_v3 ####################################
-    
-    # Point 3 - DA + ADS    
-    
-    # NAIVE ADS application
-    # final_lists_rw = []
-    # final_lists_u  = []
-    # start_basic = time.time()
-    # for i in range(1, len(tgrid)):
-    #     final_list = ADS.eval(
-    #         init_list_v3, split_tol, split_depth,
-    #         lambda domain: naive_characteristics_ADS(
-    #             domain, t0=t0, tf=float(tgrid[i]),
-    #             mu=mu, rE=rE, w0=w_DA, idx_r0=1
-    #         )
-    #     )
-    #     final_lists_rw.append(final_list)
-    #     final_lists_u.append(compute_u_list(final_list))
-    #     print("time", tgrid[i], "reached!  Ndomains =", len(final_list))
-    # print("execution time v3 naive ADS:", time.time() - start_basic)
-
-    # ADVANCED ADS application
-    # final_lists_rw = []
-    # final_lists_u  = []
-    # final_list = init_list_v3.copy()
-    # final_lists_rw.append(final_list)
-    # final_lists_u.append(compute_u_list(final_list)) # questo è u a t0
-
-    # start_adv = time.time()
-    # for i in range(Ts - 1):
-    #     final_list = ADS.eval(
-    #         final_list, split_tol, split_depth,
-    #         lambda domain: advanced_characteristics_ADS(
-    #             domain, t0=tgrid[i], tf=tgrid[i+1],
-    #             mu=mu, rE=rE, idx_r0=1
-    #         )
-    #     )
-    #     final_lists_rw.append(final_list)
-    #     final_lists_u.append(compute_u_list(final_list))
-    #     print("time", tgrid[i+1], "reached!")
-    # print("execution time v3 advanced ADS:", time.time() - start_adv) # 469 s
-    # export_ads_v3_r_w(final_list=final_list, out_dir="v3_r_w", rEarth=rE, 
-    #                   h_range=(h_min, h_max), idx_r0=1, file_prefix="dom")
-    # export_ads_v3_r_u(final_list=final_list, out_dir="v3_r_u", rEarth=rE,
-    #                   h_range=(h_min, h_max), idx_r0=1, file_prefix="dom")
-    
-    # ADVANCED ADS application + export at each time step
-    # base_out = Path(r"C:\Users\lgao111\OneDrive - The University of Auckland\Desktop\Data Tests") / "v3_const_2000_1yr"
-    # base_out.mkdir(parents=True, exist_ok=True)
-    # final_list = init_list_v3.copy()
-    # out_dir0 = base_out / f"{0:04d}" # export initial condition at t=t0
-    # export_ads_v3_r_u(
-    #     final_list=final_list,
-    #     out_dir=str(out_dir0),
-    #     rEarth=rE,
-    #     h_range=(h_min, h_max),
-    #     idx_r0=1,
-    #     file_prefix="dom",
-    # )
-    # start_adv = time.time()
-    # for i in range(1, Ts):
-    #     final_list = ADS.eval(
-    #         final_list, split_tol, split_depth,
-    #         lambda domain: advanced_characteristics_ADS(
-    #             domain, t0=float(tgrid[i-1]), tf=float(tgrid[i]),
-    #             mu=mu, rE=rE, idx_r0=1
-    #         )
-    #     )
-    #     out_dir_i = base_out / f"{i:04d}"
-    #     export_ads_v3_r_u(
-    #         final_list=final_list,
-    #         out_dir=str(out_dir_i),
-    #         rEarth=rE,
-    #         h_range=(h_min, h_max),
-    #         idx_r0=1,
-    #         file_prefix="dom",
-    #     )
-    # print("execution time v3 advanced ADS + export:", time.time() - start_adv) # 464 s 
-
-    init_domain = ADS(array([r_DA]))
-    final_list = ADS.eval([init_domain], split_tol, split_depth, eFun)   
-    final_list = [
-        ADS(dom.box, dom.nsplit, array([dom.box[0], dom.manifold[0]]))
-        for dom in final_list
-    ]
-    
-    # ADVANCED ADS application + export at each time step
-    base_out = Path(r"C:\Users\lgao111\OneDrive - The University of Auckland\Desktop\Data Tests") / "v3_gaussMP_1000_0.5yr"
-    base_out.mkdir(parents=True, exist_ok=True)
-    out_dir0 = base_out / f"{0:04d}" # export initial condition at t=t0
-    export_ads_v3_r_u(
-        final_list=final_list,
-        out_dir=str(out_dir0),
-        rEarth=rE,
-        h_range=(h_min, h_max),
-        idx_r0=1,
-        file_prefix="dom",
-    )
-    start_adv = time.time()
-    for i in range(1, Ts):
-        final_list = ADS.eval(
-            final_list, split_tol, split_depth,
-            lambda domain: advanced_characteristics_ADS(
-                domain, t0=float(tgrid[i-1]), tf=float(tgrid[i]),
-                mu=mu, rE=rE, idx_r0=1
-            )
-        )
-        out_dir_i = base_out / f"{i:04d}"
-        export_ads_v3_r_u(
-            final_list=final_list,
-            out_dir=str(out_dir_i),
-            rEarth=rE,
-            h_range=(h_min, h_max),
-            idx_r0=1,
-            file_prefix="dom",
-        )
-    print("execution time v3 advanced ADS Multi Patch + export:", time.time() - start_adv) # 315 s
+    print("main_model contains the main functions for the ADS application")
 
 if __name__ == "__main__":
     main()

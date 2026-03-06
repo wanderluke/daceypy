@@ -3,7 +3,6 @@ import re
 from pathlib import Path
 from typing import List, Tuple
 
-# --- parsing helper for DA tables printed as text ---
 _line_re = re.compile(
     r"^\s*(\d+)\s+([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s+(\d+)\s+(.*)$"
 )
@@ -27,72 +26,53 @@ def _parse_da_table(da_str: str):
     return out
 
 def _affine_center_halfwidth(box_da) -> Tuple[float, float]:
-    """
-    Extract center and halfwidth from an affine DA:
-      center + halfwidth * DA(1)
-    Works when the box variable is 1D in its own DA variable.
-    """
     terms = _parse_da_table(str(box_da))
     c0 = None
     c1 = None
     for coeff, exps in terms:
-        # exp=0 term
         if len(exps) >= 1 and exps[0] == 0:
             c0 = coeff
-        # exp=1 term
         if len(exps) >= 1 and exps[0] == 1:
             c1 = coeff
     if c0 is None or c1 is None:
         raise RuntimeError(
-            "Box DA is not affine or cannot find exp=0/exp=1 terms. "
-            "Check print(box_da) format."
+            "Box DA is not affine or cannot find exp=0/exp=1 terms."
         )
-    return c0, c1  # center, halfwidth
+    return c0, c1
 
 def _write_da_block(f, da_obj):
-    """
-    Write DA object exactly as printed (COSY-like table).
-    LoadCOSY typically tolerates headers; the key is numeric rows.
-    """
     s = str(da_obj).strip("\n")
     f.write(s)
     if not s.endswith("\n"):
         f.write("\n")
 
 def export_ads_v3_r_w(
-    final_list: List,                 # list of ADS domains at final time
+    final_list: List,
     out_dir: str,
     rEarth: float,
     h_range: Tuple[float, float],
-    idx_r0: int = 1,                  # DA variable index (1-based) used for r0
-    file_prefix: str = "dom"
+    idx_r0: int = 1,
+    file_prefix: str = "dom",
 ):
-    """
-    Export v3 as:
-      out_dir/data.dat
-      out_dir/dom_k.dat (k = 0..nsd-1), with m=2 blocks: rf and wf
 
-    data.dat columns: 2 0 xh_w xh_c (same convention as your v1)
-    where xh_c/xh_w are normalized in xi coordinates for global h_range scaling.
-    """
     outp = Path(out_dir)
     outp.mkdir(parents=True, exist_ok=True)
+    (outp / "data.dat").unlink(missing_ok=True) # questo pezzo sovrascrive data.dat
+    for p in outp.glob(f"{file_prefix}_*.dat"): # questo pezzo sovrascrive dom_k.dat files e cancella quelli in eccesso
+        p.unlink()
 
     hmin, hmax = h_range
     dh = (hmax - hmin) / 2.0
     hmid = hmin + dh
 
-    box_idx = idx_r0 - 1  # convert DA variable index -> python 0-based index for box
+    box_idx = idx_r0 - 1  # DA index -> python index
 
-    # --- write data.dat
     with (outp / "data.dat").open("w", encoding="utf-8") as f:
         for k, dom in enumerate(final_list):
-            # box contains affine mappings for each DA variable
-            # pick the one corresponding to r0
             c_r, hw_r = _affine_center_halfwidth(dom.box[box_idx])
 
             h_c = c_r - rEarth          # [km]
-            h_w = 2.0 * hw_r            # full width in km
+            h_w = 2.0 * hw_r            # full width [km]
 
             xh_c = (h_c - hmid) / dh    # normalized center
             xh_w = h_w / dh             # normalized width
@@ -101,10 +81,10 @@ def export_ads_v3_r_w(
 
     # --- write dom_k.dat
     for k, dom in enumerate(final_list):
-        rf = dom.manifold[0]
-        wf = dom.manifold[1]
+        r_da = dom.manifold[0]
+        w_da = dom.manifold[1]
 
         with (outp / f"{file_prefix}_{k}.dat").open("w", encoding="utf-8") as f:
-            _write_da_block(f, rf)
-            _write_da_block(f, wf)
+            _write_da_block(f, r_da)
+            _write_da_block(f, w_da)
 

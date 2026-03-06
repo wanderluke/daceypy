@@ -25,10 +25,6 @@ def _parse_da_table(da_str: str):
     return out
 
 def _affine_center_halfwidth(box_da) -> Tuple[float, float]:
-    """
-    Extract center and halfwidth from affine DA of the form:
-      center + halfwidth * DA(1)
-    """
     terms = _parse_da_table(str(box_da))
     c0 = None
     c1 = None
@@ -44,7 +40,6 @@ def _affine_center_halfwidth(box_da) -> Tuple[float, float]:
     return c0, c1
 
 def _write_da_block(f, da_obj):
-    """Write DA object in COSY-like format using its string representation."""
     s = str(da_obj).strip("\n")
     f.write(s)
     if not s.endswith("\n"):
@@ -72,16 +67,10 @@ def export_ads_v3_r_u(
     out_dir: str,
     rEarth: float,
     h_range: Tuple[float, float],
-    idx_r0: int = 1,                 # DA variable index (1-based)
+    idx_r0: int = 1,
     file_prefix: str = "dom",
 ):
-    """
-    Export v3 as:
-      out_dir/data.dat   (2 0 xh_w xh_c nsplit)
-      out_dir/dom_k.dat  with m=2 blocks: r and u, where u = w / r^2
 
-    Assumes each domain.manifold = [r, w].
-    """
     outp = Path(out_dir)
     outp.mkdir(parents=True, exist_ok=True)
     (outp / "data.dat").unlink(missing_ok=True) # questo pezzo sovrascrive data.dat
@@ -94,7 +83,6 @@ def export_ads_v3_r_u(
 
     box_idx = idx_r0 - 1  # DA index -> python index
 
-    # ---- data.dat
     with (outp / "data.dat").open("w", encoding="utf-8") as f:
         for dom in final_list:
             c_r, hw_r = _affine_center_halfwidth(dom.box[box_idx])
@@ -109,12 +97,10 @@ def export_ads_v3_r_u(
 
             f.write(f"2 0 {xh_w:.16g} {xh_c:.16g} {depth:d}\n")
 
-    # ---- dom_k.dat
+
     for k, dom in enumerate(final_list):
         r_da = dom.manifold[0]
         w_da = dom.manifold[1]
-
-        # u = w / r^2  (DA algebra should support this)
         u_da = w_da / (r_da * r_da)
 
         with (outp / f"{file_prefix}_{k}.dat").open("w", encoding="utf-8") as f:
