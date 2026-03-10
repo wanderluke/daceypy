@@ -1,5 +1,4 @@
 import daceypy_import_helper  # noqa: F401
-from pathlib import Path
 from math import ceil
 import numpy as np
 from daceypy import DA, array, ADS

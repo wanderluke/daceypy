@@ -13,7 +13,7 @@ def main():
     
     base_out = Path(r"C:\Users\lgao111\OneDrive - The University of Auckland\Desktop\Data Tests") / "L_v3_4_gauss_MP"
     base_out.mkdir(parents=True, exist_ok=True)
-    out_dir = base_out / "2000_0.5yrs"
+    out_dir = base_out / "1000_0.5yrs"
 
     DA.init(4, 1)
     DA.setEps(1e-40)
@@ -30,11 +30,14 @@ def main():
     tgrid = np.linspace(t0, tf, Ts)
 
     h_min = 200.0
-    h_max = 2000.0
+    h_max = 1000.0
 
     r_mid = rE + (h_min + h_max) / 2.0
     dr = 0.5 * (h_max - h_min)
     r_DA = r_mid + dr * DA(1)
+    
+    h_reentry = 180.0
+    r_reentry = rE + h_reentry
 
     NN = 10000.0 # w0 gaussiana con 1 patch
     mu_h = 750.0      # km
@@ -73,6 +76,15 @@ def main():
                 mu=mu, rE=rE, idx_r0=1
             )
         )
+
+        filtered_list = []
+        for ads_el in final_list:
+            lb, ub = ads_el.manifold[0].bound()   # first component = radius
+            if ub >= r_reentry:
+                filtered_list.append(ads_el)
+
+        final_list = filtered_list
+
         out_dir_i = out_dir / f"{i:04d}"
         export_ads_v3_r_u(
             final_list=final_list,
