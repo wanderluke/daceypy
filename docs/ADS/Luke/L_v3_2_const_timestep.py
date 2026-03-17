@@ -10,9 +10,9 @@ from Export_v3_r_u import export_ads_v3_r_u
 
 def main():
     
-    base_out = Path(r"C:\Users\lgao111\OneDrive - The University of Auckland\Desktop\Data Tests") / "L_v3_2_const_timestep"
+    base_out = Path(r"C:\Users\lgao111\OneDrive - The University of Auckland\Desktop\Data Tests") / "L_v4_1_const_timestep_Sw"
     base_out.mkdir(parents=True, exist_ok=True)
-    out_dir = base_out / "2000_1yrs"
+    out_dir = base_out / "2000_0.5yrs_Sw_gmm"
 
     DA.init(4, 1)
     DA.setEps(1e-40)
@@ -24,7 +24,7 @@ def main():
     rE = 6378.0         # km
 
     t0 = 0.0
-    tf = 3600.0 * 24.0 * 365.25  
+    tf = 3600.0 * 12.0 * 365.25   
     Ts = 100
     tgrid = np.linspace(t0, tf, Ts)
 
@@ -35,7 +35,7 @@ def main():
     dr = 0.5 * (h_max - h_min)
     r_DA = r_mid + dr * DA(1)
 
-    h_reentry = 180.0
+    h_reentry = 200.0
     r_reentry = rE + h_reentry
 
     NN = 10000.0 # w0 costante

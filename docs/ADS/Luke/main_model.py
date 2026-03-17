@@ -6,11 +6,6 @@ from typing import Callable
 from daceypy.op import exp, sqrt, tanh
 from typing import Union
 
-def event_reentry_150(X: array, t: float, rE: float) -> bool:
-    r = X[0]
-    r_cons = float(r.cons()) if hasattr(r, "cons") else float(r) # r puo essere float o DA
-    return r_cons <= (rE + 150.0)
-
 def atm_dens(r, rE: float):
     rho_ref = 1e-14 * 1e3                 # [kg/m^3]  
     h_ref = 400.0                         # [km]
@@ -19,14 +14,52 @@ def atm_dens(r, rE: float):
     rho = rho_ref * exp(-(h - h_ref) / H) # [kg/m^3] 
     return rho                            # same type as r
 
+# def source_w(r, t, rE):
+#     Lambda0_year = 3000.0
+#     Lambda0 = Lambda0_year / (365.25 * 24.0 * 3600.0)   # objects/s
+
+#     hmin = 200.0
+#     hmax = 2000.0
+
+#     f = 1.0 / (hmax - hmin)   # 1/km, uniform in altitude
+#     Sw = (Lambda0 / (4.0 * np.pi)) * f
+
+#     return 0.0 * r + Sw # oppure caso nullo solo 0.0 * r
+
+def source_w(r, t, rE):
+    # -------------------------------------------------
+    # Hardcoded source parameters
+    # -------------------------------------------------
+    Lambda0_year = 3000.0   # objects/year, example
+    Lambda0 = Lambda0_year / (365.25 * 24.0 * 3600.0)   # objects/s
+    mu_h = np.array([550.0, 1200.0], dtype=float)
+    sigma_h = np.array([40.0, 80.0], dtype=float)
+    weight = np.array([0.7, 0.3], dtype=float)
+    # normalize weights just in case
+    weight = weight / np.sum(weight)
+    # -------------------------------------------------
+    # GMM in altitude h = r - rE
+    # f(h) in 1/km
+    # -------------------------------------------------
+    h = r - rE
+    f = DA(0.0)
+    for wj, muj, sj in zip(weight, mu_h, sigma_h):
+        if sj <= 0.0:
+            continue
+        f = f + (float(wj) / (sj * np.sqrt(2.0 * np.pi))) * exp(
+            -0.5 * ((h - muj) / sj) ** 2
+        )
+    # isotropic source: objects / (km sr s)
+    Sw = (Lambda0 / (4.0 * np.pi)) * f
+    return Sw
+
 def fnc_drdt(r, mu: float, rE: float):
     rho = atm_dens(r, rE)                      # [kg/m^3]
     BC = 50.0 / (2.2 * 0.5)                    # [kg/m^2]
     v_r = -sqrt(mu * r) * (rho / BC) * 1e3     # [km/s]
     r0 = rE + 200.0                            # [km]
     delta = 20.0                               # [km]
-    chi = 0.5 * (1.0 + tanh((r - r0) / delta)) # [-] bridging function around 200 km altitude
-    # chi = 1.0
+    chi = 0.5 * (1.0 + tanh((r - r0) / delta)) # [-] bridging function
     return v_r * chi                           # same type as r
 
 def fnc_drdt_ADS(domain: ADS, mu: float, rE: float) -> ADS:
@@ -47,8 +80,10 @@ def charDensDynamics(X: array, t: float, mu: float, rE: float, idx_r0: int = 1) 
     dv_dr0 = v_r.deriv(idx_r0)
     dv_dr = dv_dr0 / dr_dr0
 
+    Sw = source_w(r, t, rE)
+
     drdt = v_r
-    dwdt = -dv_dr * w
+    dwdt = -dv_dr * w + Sw
     return array([drdt, dwdt])
 
 def propagation(t0: float, tf: float, X: array, mu: float, rE: float) -> array:
@@ -59,8 +94,7 @@ def propagation(t0: float, tf: float, X: array, mu: float, rE: float) -> array:
 
     xf = RK78(
         x0, t0, tf,
-        lambda X, t: characteristicsDynamics(X, t, mu, rE),
-        event=lambda X, t: event_reentry_150(X, t, rE)
+        lambda X, t: characteristicsDynamics(X, t, mu, rE)
     )
     return xf
     
@@ -89,8 +123,7 @@ def propagation_dens(t0: float, tf: float, X: array, mu: float, rE: float, idx_r
 
     xf = RK78(
         x0, t0, tf,
-        lambda X, t: charDensDynamics(X, t, mu, rE, idx_r0=idx_r0),
-        event=lambda X, t: event_reentry_150(X, t, rE)
+        lambda X, t: charDensDynamics(X, t, mu, rE, idx_r0=idx_r0)
     )
     return xf                      # array([rf, wf])
 
