@@ -11,10 +11,9 @@ from Export_v3_r_u import export_ads_v3_r_u
 
 def main():
     
-    base_out = Path(r"C:\Users\lgao111\OneDrive - The University of Auckland\Desktop\Data Tests") / "L_v3_3_gauss_timestep"
+    base_out = Path(r"C:\PhD_Luca\Data Tests") / "exp_006_gauss_timestep"
     base_out.mkdir(parents=True, exist_ok=True)
-    out_dir = base_out / "2000_0.5yrs"
-
+    out_dir = base_out
     DA.init(4, 1)
     DA.setEps(1e-40)
 
@@ -30,13 +29,13 @@ def main():
     tgrid = np.linspace(t0, tf, Ts)
 
     h_min = 200.0
-    h_max = 2000.0
+    h_max = 1000.0
 
     r_mid = rE + (h_min + h_max) / 2.0
     dr = 0.5 * (h_max - h_min)
     r_DA = r_mid + dr * DA(1)
     
-    h_reentry = 180.0
+    h_reentry = 200.0
     r_reentry = rE + h_reentry
 
     NN = 10000.0 # w0 gaussiana con 1 patch

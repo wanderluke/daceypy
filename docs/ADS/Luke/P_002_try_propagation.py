@@ -12,7 +12,7 @@ from Export_v1_v2 import export_ads
 
 def main():
     
-    base_out = Path(r"C:\Users\lgao111\OneDrive - The University of Auckland\Desktop\Data Tests") / "L_v2"
+    base_out = Path(r"C:\PhD_Luca\Data Tests") / "exp_002_propagation"
     base_out.mkdir(parents=True, exist_ok=True)
     out_dir = str(base_out)
 
@@ -26,7 +26,7 @@ def main():
     rE = 6378.0         # km
 
     t0 = 0.0
-    tf = 3600.0 * 24.0 * 30  
+    tf = 3600.0 * 24.0 * 3  
     Ts = 100
     tgrid = np.linspace(t0, tf, Ts)
 

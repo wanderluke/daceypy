@@ -5,7 +5,7 @@ from Export_v1_v2 import export_ads
 
 def main():
 
-    base_out = Path(r"C:\Users\lgao111\OneDrive - The University of Auckland\Desktop\Data Tests") / "L_v1"
+    base_out = Path(r"C:\PhD_Luca\Data Tests") / "exp_001_I_choose_you"
     base_out.mkdir(parents=True, exist_ok=True)
     out_dir = str(base_out)
 

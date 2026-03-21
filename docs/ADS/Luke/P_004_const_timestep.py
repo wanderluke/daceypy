@@ -5,15 +5,14 @@ import time
 
 from main_model import (
     advanced_characteristics_ADS,
-    eFunGauss,
 )
 from Export_v3_r_u import export_ads_v3_r_u
 
 def main():
     
-    base_out = Path(r"C:\Users\lgao111\OneDrive - The University of Auckland\Desktop\Data Tests") / "L_v3_4_gauss_MP"
+    base_out = Path(r"C:\PhD_Luca\Data Tests") / "exp_009_const_Sw_gmm"
     base_out.mkdir(parents=True, exist_ok=True)
-    out_dir = base_out / "1000_0.5yrs"
+    out_dir = base_out 
 
     DA.init(4, 1)
     DA.setEps(1e-40)
@@ -25,39 +24,31 @@ def main():
     rE = 6378.0         # km
 
     t0 = 0.0
-    tf = 3600.0 * 12.0 * 365.25  
+    tf = 3600.0 * 12.0 * 365.25   
     Ts = 100
     tgrid = np.linspace(t0, tf, Ts)
 
     h_min = 200.0
-    h_max = 1000.0
+    h_max = 2000.0
 
     r_mid = rE + (h_min + h_max) / 2.0
     dr = 0.5 * (h_max - h_min)
     r_DA = r_mid + dr * DA(1)
-    
-    h_reentry = 180.0
+
+    h_reentry = 200.0
     r_reentry = rE + h_reentry
 
-    NN = 10000.0 # w0 gaussiana con 1 patch
-    mu_h = 750.0      # km
-    sigma_h = 150.0   # km
-    
-    dom = array([r_DA])
-    init_domain = ADS(dom)
-    init_list = ADS.eval(
-        [init_domain],
-        split_tol,
-        split_depth,
-        lambda d: eFunGauss(d, NN, mu_h, sigma_h, rE)
-    ) 
-    final_list = [
-        ADS(dom.box, dom.nsplit, array([dom.box[0], dom.manifold[0]]))
-        for dom in init_list
-    ]
-    
-    # ADVANCED ADS application + export at each time step
+    NN = 10000.0 # w0 costante
+    deltah = (h_max - h_min)
+    w_DA = DA((1.0 / (4.0 * np.pi)) * (NN / deltah))
 
+    dom = array([r_DA])
+    man = array([r_DA, w_DA])
+    init_list = [ADS(dom, [], man)]
+
+    # ADVANCED ADS application + export at each time step
+    
+    final_list = init_list.copy()
     out_dir0 = out_dir / f"{0:04d}" # export initial condition at t=t0
     export_ads_v3_r_u(
         final_list=final_list,
@@ -94,7 +85,7 @@ def main():
             idx_r0=1,
             file_prefix="dom",
         )
-    print("execution time v3 advanced ADS Multi Patch + export:", time.time() - start_adv) # 315 s 
+    print("execution time v3 advanced ADS + export:", time.time() - start_adv) 
 
 if __name__ == "__main__":
     main()

@@ -14,10 +14,10 @@ from Export_v3_r_w import export_ads_v3_r_w
 
 def main():
     
-    base_out = Path(r"C:\Users\lgao111\OneDrive - The University of Auckland\Desktop\Data Tests") / "L_v3_1_const"
-    base_out.mkdir(parents=True, exist_ok=True)
-    out_dir1 = base_out / "r_u_2000_0.5yrs"
-    out_dir2 = base_out / "r_w_2000_0.5yrs"
+    out_dir1 = Path(r"C:\PhD_Luca\Data Tests") / "exp_003_const_r_u"
+    out_dir2 = Path(r"C:\PhD_Luca\Data Tests") / "exp_004_const_r_w"
+    out_dir1.mkdir(parents=True, exist_ok=True)
+    out_dir2.mkdir(parents=True, exist_ok=True)
 
     DA.init(4, 1)
     DA.setEps(1e-40)
