@@ -24,7 +24,7 @@ def atm_dens(r, rE: float):
 #     f = 1.0 / (hmax - hmin)   # 1/km, uniform in altitude
 #     Sw = (Lambda0 / (4.0 * np.pi)) * f
 
-#     return 0.0 * r + Sw # oppure caso nullo solo 0.0 * r
+#     return Sw 
 
 def source_w(r, t, rE):
     # -------------------------------------------------
@@ -52,6 +52,46 @@ def source_w(r, t, rE):
     # isotropic source: objects / (km sr s)
     Sw = (Lambda0 / (4.0 * np.pi)) * f
     return Sw
+
+def apply_discrete_source(final_list, dt, t_now, rE):
+    """
+    Discrete source update on the current ADS patches.
+
+    Each patch manifold is assumed to be [r, w].
+    The source is evaluated on the current radius manifold r, and the
+    density manifold is updated explicitly as:
+
+        w_new = w_old + dt * source_w(r, t_now, rE)
+
+    Parameters
+    ----------
+    final_list : list[ADS]
+        Current list of ADS patches, each with manifold [r, w].
+    dt : float
+        Time step in seconds.
+    t_now : float
+        Current time at which the discrete source is applied.
+    rE : float
+        Earth radius [km].
+
+    Returns
+    -------
+    updated_list : list[ADS]
+        Same patch structure, updated manifold [r, w_new].
+    """
+    updated_list = []
+
+    for dom in final_list:
+        r_da = dom.manifold[0]
+        w_da = dom.manifold[1]
+
+        Sw_da = source_w(r_da, t_now, rE)   # objects / (km sr s)
+        w_new = w_da + dt * Sw_da           # objects / (km sr)
+
+        updated_dom = ADS(dom.box, dom.nsplit, array([r_da, w_new]))
+        updated_list.append(updated_dom)
+
+    return updated_list
 
 def fnc_drdt(r, mu: float, rE: float):
     rho = atm_dens(r, rE)                      # [kg/m^3]
@@ -83,7 +123,7 @@ def charDensDynamics(X: array, t: float, mu: float, rE: float, idx_r0: int = 1) 
     Sw = source_w(r, t, rE)
 
     drdt = v_r
-    dwdt = -dv_dr * w + Sw
+    dwdt = -dv_dr * w 
     return array([drdt, dwdt])
 
 def propagation(t0: float, tf: float, X: array, mu: float, rE: float) -> array:
