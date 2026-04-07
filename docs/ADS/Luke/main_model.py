@@ -123,7 +123,7 @@ def charDensDynamics(X: array, t: float, mu: float, rE: float, idx_r0: int = 1) 
     Sw = source_w(r, t, rE)
 
     drdt = v_r
-    dwdt = -dv_dr * w 
+    dwdt = -dv_dr * w
     return array([drdt, dwdt])
 
 def propagation(t0: float, tf: float, X: array, mu: float, rE: float) -> array:

@@ -1,3 +1,5 @@
+import shutil
+
 from daceypy import DA, array, ADS
 from pathlib import Path
 import numpy as np
@@ -10,7 +12,10 @@ from Export_v3_r_u import export_ads_v3_r_u
 
 def main():
     
-    base_out = Path(r"C:\PhD_Luca\Data Tests") / "exp_009_const_Sw_gmm"
+    # base_out = Path(r"C:\PhD_Luca\Data Tests") / "exp_009_const_Sw_gmm"
+    base_out = Path(r"C:\PhD_Luca\Data Tests") / "exp_013"
+    if base_out.exists():
+        shutil.rmtree(base_out)
     base_out.mkdir(parents=True, exist_ok=True)
     out_dir = base_out 
 
@@ -25,7 +30,7 @@ def main():
 
     t0 = 0.0
     tf = 3600.0 * 12.0 * 365.25   
-    Ts = 100
+    Ts = 2
     tgrid = np.linspace(t0, tf, Ts)
 
     h_min = 200.0

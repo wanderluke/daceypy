@@ -1,3 +1,5 @@
+import shutil
+
 from daceypy import DA, array, ADS
 from pathlib import Path
 import numpy as np
@@ -12,6 +14,8 @@ from Export_v3_r_u import export_ads_v3_r_u
 def main():
     
     base_out = Path(r"C:\PhD_Luca\Data Tests") / "exp_007_gauss_MP"
+    if base_out.exists():
+        shutil.rmtree(base_out)
     base_out.mkdir(parents=True, exist_ok=True)
     out_dir = base_out
 
